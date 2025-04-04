@@ -2,7 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { GoogleMap, useLoadScript, Marker } from '@react-google-maps/api';
 import { db } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
-import { map_api_key } from '../config'; 
+import config from '../config'; 
 
 const mapContainerStyle = {
   width: '100%',
@@ -16,7 +16,7 @@ const center = {
 
 function TripPage() {
   const { isLoaded, loadError } = useLoadScript({
-    googleMapsApiKey: map_api_key
+    googleMapsApiKey: config.map_api_key
   });
 
   const [earthCoords, setEarthCoords] = useState(null);
