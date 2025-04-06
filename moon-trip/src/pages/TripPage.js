@@ -15,10 +15,12 @@ const center = {
 };
 
 function TripPage() {
-
   const { isLoaded, loadError } = useLoadScript({
     googleMapsApiKey: config.map_api_key
   });
+
+  const [user, setUser] = useState(null);
+  const [gsiScriptLoaded, setGsiScriptLoaded] = useState(false);
 
   const [earthCoords, setEarthCoords] = useState(null);
   const [moonLat, setMoonLat] = useState('');
@@ -29,6 +31,60 @@ function TripPage() {
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [weatherError, setWeatherError] = useState(null);
 
+  useEffect(() => {
+    if (gsiScriptLoaded || !config.google_client_id) return;
+
+    const initializeGoogleSignIn = () => {
+      try {
+        window.google.accounts.id.initialize({
+          client_id: config.google_client_id,
+          callback: handleGoogleSignIn
+        });
+
+        window.google.accounts.id.renderButton(
+          document.getElementById('googleSignInBtn'),
+          { theme: 'outline', size: 'large' }
+        );
+      } catch (error) {
+        console.error('Error initializing Google Sign-In:', error);
+      }
+    };
+
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      setGsiScriptLoaded(true);
+      initializeGoogleSignIn();
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      document.head.removeChild(script);
+    };
+  }, [gsiScriptLoaded]);
+
+  const handleGoogleSignIn = (response) => {
+    try {
+      const credential = response.credential;
+      const userData = parseJwt(credential);
+      setUser(userData);
+    } catch (error) {
+      console.error('Error handling Google Sign-In:', error);
+    }
+  };
+
+  // JWT parsing helper
+  const parseJwt = (token) => {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch (e) {
+    return null;
+  }
+};
+
+  // Original component logic
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     setStartDate(today);
@@ -76,6 +132,11 @@ function TripPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (!user) {
+      alert('Please sign in with Google first!');
+      return;
+    }
+
     if (!earthCoords || !moonLat || !moonLng || !startDate || !endDate) {
       alert('Please fill in all fields.');
       return;
@@ -88,7 +149,8 @@ function TripPage() {
         startDate,
         endDate,
         destination: 'Earth to Moon',
-        weatherAtDeparture: weather
+        weatherAtDeparture: weather,
+        userId: user.sub // Store Google's unique user ID
       });
       alert('Trip added successfully!');
     } catch (err) {
@@ -102,6 +164,36 @@ function TripPage() {
 
   return (
     <div style={{ padding: '20px' }}>
+      {/* Authentication Section */}
+      <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+        {!user ? (
+          <div id="googleSignInBtn" />
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <img
+              src={user.picture}
+              alt="Profile"
+              style={{ width: '30px', borderRadius: '50%' }}
+            />
+            <span>Hello, {user.given_name}</span>
+            <button
+              onClick={() => setUser(null)}
+              style={{
+                padding: '5px 10px',
+                background: '#ff4444',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Original Content */}
       <h1>Plan Your Rocket Trip</h1>
       <p>Click on the map to select your Earth destination</p>
 
