@@ -31,6 +31,7 @@ function TripPage() {
   const [loadingWeather, setLoadingWeather] = useState(false);
   const [weatherError, setWeatherError] = useState(null);
 
+
   useEffect(() => {
     if (gsiScriptLoaded || !config.google_client_id) return;
 
@@ -63,6 +64,7 @@ function TripPage() {
     return () => {
       document.head.removeChild(script);
     };
+
   }, [gsiScriptLoaded]);
 
   const handleGoogleSignIn = (response) => {
@@ -75,16 +77,14 @@ function TripPage() {
     }
   };
 
-  // JWT parsing helper
   const parseJwt = (token) => {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch (e) {
-    return null;
-  }
-};
+    try {
+      return JSON.parse(atob(token.split('.')[1]));
+    } catch (e) {
+      return null;
+    }
+  };
 
-  // Original component logic
   useEffect(() => {
     const today = new Date().toISOString().split('T')[0];
     setStartDate(today);
@@ -120,6 +120,7 @@ function TripPage() {
     }
   };
 
+
   const onMapClick = useCallback(async (e) => {
     const clickedCoords = {
       lat: e.latLng.lat(),
@@ -152,12 +153,27 @@ function TripPage() {
         weatherAtDeparture: weather,
         userId: user.sub // Store Google's unique user ID
       });
-      alert('Trip added successfully!');
+      //calling the api to do the reuqest
+      await fetch('/api/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: 'cgamer788@gmail.com',
+          name: 'Ionescu Antonio',
+          startDate,
+          endDate,
+          earthCoords,
+          moonCoords: { lat: parseFloat(moonLat), lng: parseFloat(moonLng) }
+        })
+      });
+
+      alert('Trip added successfully and confirmation sent to email!');
     } catch (err) {
       console.error("Error adding trip:", err);
       alert('Failed to add trip.');
     }
   };
+
 
   if (loadError) return <p>Error loading map</p>;
   if (!isLoaded) return <p>Loading map...</p>;
