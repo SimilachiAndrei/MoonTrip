@@ -33,11 +33,10 @@ function Register() {
           }
         );
       } catch (backendError) {
-        // If the error contains "Token used too early", we can proceed anyway
         if (backendError.response?.data?.error?.includes("Token used too early")) {
           console.log("Ignoring clock synchronization error, continuing...");
         } else {
-          throw backendError;  // Re-throw if it's a different error
+          throw backendError; 
         }
       }
 

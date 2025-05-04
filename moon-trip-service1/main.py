@@ -36,6 +36,21 @@ def create_user():
         print(f"Authentication error: {str(e)}")
         return jsonify({'error': str(e)}), 401
 
+@app.route('/api/auth/login', methods=['POST'])
+def log_login():
+    # Verify token and get uid
+    id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
+    # Add clock tolerance parameter (5 seconds)
+    decoded_token = auth.verify_id_token(id_token, check_revoked=True, clock_skew_seconds=5)
+    uid = decoded_token['uid']
+
+    # Update last login time
+    db.collection('users').document(uid).update({
+        'lastLogin': firestore.SERVER_TIMESTAMP
+    })
+
+    return jsonify({'success': True})
+
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
     # Verifică token-ul de autentificare
