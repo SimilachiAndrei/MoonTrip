@@ -1,71 +1,87 @@
-import datetime
-from flask import Flask, render_template, request
-from google.auth.transport import requests
-from google.cloud import datastore
-import google.oauth2.id_token
+from flask import Flask, request, jsonify
+from flask_cors import CORS
+import os
+import firebase_admin
+from firebase_admin import credentials, auth, firestore
 
-datastore_client = datastore.Client()
-
-def store_time(dt):
-    entity = datastore.Entity(key=datastore_client.key("visit"))
-    entity.update({"timestamp": dt})
-
-    datastore_client.put(entity)
-
-
-def fetch_times(limit):
-    query = datastore_client.query(kind="visit")
-    query.order = ["-timestamp"]
-
-    times = query.fetch(limit=limit)
-
-    return times
-
+# Inițializare Firebase
+cred = credentials.Certificate('./serviceAccountKey.json')  # Descarcă din Firebase Console
+firebase_admin.initialize_app(cred)
+db = firestore.client()
 
 app = Flask(__name__)
+CORS(app)  # Permite cereri cross-origin
 
 
-firebase_request_adapter = requests.Request()
-@app.route("/")
-def root():
-    # Verify Firebase auth.
-    id_token = request.cookies.get("token")
-    error_message = None
-    claims = None
-    times = None
+@app.route('/api/register', methods=['POST'])
+def register():
+    data = request.json
+    email = data.get('email')
+    password = data.get('password')
 
-    if id_token:
-        try:
-            # Verify the token against the Firebase Auth API. This example
-            # verifies the token on each page load. For improved performance,
-            # some applications may wish to cache results in an encrypted
-            # session store (see for instance
-            # http://flask.pocoo.org/docs/1.0/quickstart/#sessions).
-            claims = google.oauth2.id_token.verify_firebase_token(
-                id_token, firebase_request_adapter
-            )
-        except ValueError as exc:
-            # This will be raised if the token is expired or any other
-            # verification checks fail.
-            error_message = str(exc)
+    try:
+        # Creare utilizator în Firebase Auth
+        user = auth.create_user(
+            email=email,
+            password=password
+        )
 
-        # Record and fetch the recent times a logged-in user has accessed
-        # the site. This is currently shared amongst all users, but will be
-        # individualized in a following step.
-        store_time(datetime.datetime.now(tz=datetime.timezone.utc))
-        times = fetch_times(10)
+        # Salvare utilizator în Firestore
+        db.collection('users').document(user.uid).set({
+            'email': email,
+            'createdAt': firestore.SERVER_TIMESTAMP
+        })
 
-    return render_template(
-        "index.html", user_data=claims, error_message=error_message, times=times
-    )
+        return jsonify({'success': True, 'uid': user.uid}), 201
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 400
 
 
-if __name__ == "__main__":
-    # This is used when running locally only. When deploying to Google App
-    # Engine, a webserver process such as Gunicorn will serve the app. This
-    # can be configured by adding an `entrypoint` to app.yaml.
-    # Flask's development server will automatically serve static files in
-    # the "static" directory. See:
-    # http://flask.pocoo.org/docs/1.0/quickstart/#static-files. Once deployed,
-    # App Engine itself will serve those files as configured in app.yaml.
-    app.run(host="127.0.0.1", port=8080, debug=True)
+@app.route('/api/tasks', methods=['GET'])
+def get_tasks():
+    # Verifică token-ul de autentificare
+    id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token['uid']
+
+        # Obține task-urile utilizatorului
+        tasks_ref = db.collection('tasks').where('userId', '==', uid)
+        tasks = [doc.to_dict() | {'id': doc.id} for doc in tasks_ref.stream()]
+
+        return jsonify({'tasks': tasks}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
+
+@app.route('/api/tasks', methods=['POST'])
+def create_task():
+    # Verifică token-ul de autentificare
+    id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
+    data = request.json
+
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token['uid']
+
+        # Creare task nou
+        task_ref = db.collection('tasks').document()
+        task_ref.set({
+            'title': data.get('title'),
+            'completed': False,
+            'userId': uid,
+            'createdAt': firestore.SERVER_TIMESTAMP
+        })
+
+        return jsonify({
+            'id': task_ref.id,
+            'title': data.get('title'),
+            'completed': False
+        }), 201
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 8080))
+    app.run(host='0.0.0.0', port=port)
