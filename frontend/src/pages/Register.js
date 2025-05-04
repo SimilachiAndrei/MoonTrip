@@ -13,21 +13,19 @@ function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      // Create user in Firebase Auth
+      // 1. Create user in Firebase Auth (client-side)
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-      
-      // Register user in your Flask backend
-      await axios.post(`${API_URL}/api/register`, {
-        email: email,
-        password: password
-      });
-      
-      // Get token for API requests
+  
+      // 2. Save additional user data to Firestore via your backend
       const idToken = await user.getIdToken();
-      localStorage.setItem('authToken', idToken);
-      
-      // Redirect to dashboard
+      await axios.post(
+        `${API_URL}/api/users`,  // New endpoint for Firestore data only
+        { email: email },
+        { headers: { Authorization: `Bearer ${idToken}` } }
+      );
+  
+      // 3. Redirect
       window.location.href = '/login';
     } catch (error) {
       setError(error.message);
