@@ -3,7 +3,7 @@ import { auth } from '../firebase';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import axios from 'axios';
 
-const API_URL = "https://localhost:3000";
+const API_URL = "https://moontrip-455720.lm.r.appspot.com";
 
 function Register() {
   const [email, setEmail] = useState('');
@@ -28,7 +28,7 @@ function Register() {
       localStorage.setItem('authToken', idToken);
       
       // Redirect to dashboard
-      window.location.href = '/TaskList';
+      window.location.href = '/login';
     } catch (error) {
       setError(error.message);
     }

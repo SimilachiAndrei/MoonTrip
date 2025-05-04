@@ -3,7 +3,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from '../firebase';
 import axios from 'axios';
 
-const API_URL = "https://localhost:3000"
+const API_URL = "https://moontrip-455720.lm.r.appspot.com"
 
 function Login() {
   const [email, setEmail] = useState('');

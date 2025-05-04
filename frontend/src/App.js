@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import Login from './pages/Login';
 import TaskList from './pages/TaskList';
 import Register from './pages/Register';
+import ProtectedRoute from './components/ProtectedRoute';
 import './firebase';
 
 function App() {
@@ -12,7 +13,14 @@ function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/TaskList" element={<TaskList />} />
+        <Route
+          path="/tasks"
+          element={
+            <ProtectedRoute>
+              <TaskList />
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );
