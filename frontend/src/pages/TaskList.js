@@ -3,7 +3,7 @@ import axios from 'axios';
 import { signOut } from "firebase/auth";
 import { auth } from '../firebase';
 
-const API_URL = "https://moontrip-455720.lm.r.appspot.com";
+const API_URL = "http://localhost:8080";
 
 function TaskList() {
   const [tasks, setTasks] = useState([]);

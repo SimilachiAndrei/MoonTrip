@@ -51,22 +51,32 @@ def log_login():
 
     return jsonify({'success': True})
 
+
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():
     # Verifică token-ul de autentificare
-    id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'No bearer token provided'}), 401
+
+    id_token = auth_header.split('Bearer ')[1]
     try:
         decoded_token = auth.verify_id_token(id_token)
         uid = decoded_token['uid']
 
         # Obține task-urile utilizatorului
         tasks_ref = db.collection('tasks').where('userId', '==', uid)
-        tasks = [doc.to_dict() | {'id': doc.id} for doc in tasks_ref.stream()]
+
+        # Fix for Python versions before 3.9
+        tasks = []
+        for doc in tasks_ref.stream():
+            task_dict = doc.to_dict()
+            task_dict['id'] = doc.id  # Add id to the dictionary
+            tasks.append(task_dict)
 
         return jsonify({'tasks': tasks}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 401
-
 
 @app.route('/api/tasks', methods=['POST'])
 def create_task():

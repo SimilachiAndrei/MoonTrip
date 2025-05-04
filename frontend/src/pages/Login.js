@@ -3,7 +3,7 @@ import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from '../firebase';
 import axios from 'axios';
 
-const API_URL = "https://moontrip-455720.lm.r.appspot.com"
+const API_URL = "http://localhost:8080"
 
 function Login() {
   const [email, setEmail] = useState('');
@@ -13,17 +13,26 @@ function Login() {
   const handleLogin = async (e) => {
     e.preventDefault();
     try {
-      // Autentificare cu Firebase
+      // Firebase Authentication
       const userCredential = await signInWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-
-      // Obține token pentru API
       const idToken = await user.getIdToken();
-
-      // Salvează token-ul pentru cereri viitoare
+      
+      // Store token for future API requests
       localStorage.setItem('authToken', idToken);
-
-      // Redirecționare (înlocuiește cu React Router dacă folosești)
+      
+      // Update last login timestamp (optional)
+      try {
+        await axios.post(
+          `${API_URL}/api/auth/login`,
+          {},
+          { headers: { Authorization: `Bearer ${idToken}` } }
+        );
+      } catch (serverError) {
+        console.warn("Failed to update login timestamp:", serverError);
+      }
+      
+      // Redirect
       window.location.href = '/tasks';
     } catch (error) {
       setError(error.message);
