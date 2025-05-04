@@ -13,29 +13,28 @@ app = Flask(__name__)
 CORS(app)  # Permite cereri cross-origin
 
 
-@app.route('/api/register', methods=['POST'])
-def register():
-    data = request.json
-    email = data.get('email')
-    password = data.get('password')
+@app.route('/api/users', methods=['POST'])
+def create_user():
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'No bearer token provided'}), 401
 
+    id_token = auth_header.split('Bearer ')[1]
     try:
-        # Creare utilizator în Firebase Auth
-        user = auth.create_user(
-            email=email,
-            password=password
-        )
+        # Add clock tolerance parameter (5 seconds)
+        decoded_token = auth.verify_id_token(id_token, check_revoked=True, clock_skew_seconds=5)
+        uid = decoded_token['uid']
+        email = decoded_token.get('email') or request.json.get('email')
 
-        # Salvare utilizator în Firestore
-        db.collection('users').document(user.uid).set({
+        # Save to Firestore
+        db.collection('users').document(uid).set({
             'email': email,
             'createdAt': firestore.SERVER_TIMESTAMP
         })
-
-        return jsonify({'success': True, 'uid': user.uid}), 201
+        return jsonify({'success': True}), 201
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 400
-
+        print(f"Authentication error: {str(e)}")
+        return jsonify({'error': str(e)}), 401
 
 @app.route('/api/tasks', methods=['GET'])
 def get_tasks():

@@ -3,7 +3,7 @@ import { auth } from '../firebase';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import axios from 'axios';
 
-const API_URL = "https://moontrip-455720.lm.r.appspot.com";
+const API_URL = "http://localhost:8080";
 
 function Register() {
   const [email, setEmail] = useState('');
@@ -13,25 +13,41 @@ function Register() {
   const handleRegister = async (e) => {
     e.preventDefault();
     try {
-      // 1. Create user in Firebase Auth (client-side)
+      // 1. Create user in Firebase Auth
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
-  
-      // 2. Save additional user data to Firestore via your backend
-      const idToken = await user.getIdToken();
-      await axios.post(
-        `${API_URL}/api/users`,  // New endpoint for Firestore data only
-        { email: email },
-        { headers: { Authorization: `Bearer ${idToken}` } }
-      );
-  
-      // 3. Redirect
+
+      // 2. Get the token and make sure it's valid
+      const idToken = await user.getIdToken(true);
+
+      // 3. Save user data to backend
+      try {
+        await axios.post(
+          `${API_URL}/api/users`,
+          { email: email },
+          {
+            headers: {
+              'Authorization': `Bearer ${idToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+      } catch (backendError) {
+        // If the error contains "Token used too early", we can proceed anyway
+        if (backendError.response?.data?.error?.includes("Token used too early")) {
+          console.log("Ignoring clock synchronization error, continuing...");
+        } else {
+          throw backendError;  // Re-throw if it's a different error
+        }
+      }
+
+      // 4. Redirect
       window.location.href = '/login';
     } catch (error) {
+      console.error("Registration error:", error);
       setError(error.message);
     }
   };
-
   return (
     <div className="register-form">
       <h2>Register</h2>
@@ -39,20 +55,20 @@ function Register() {
       <form onSubmit={handleRegister}>
         <div>
           <label>Email:</label>
-          <input 
-            type="email" 
-            value={email} 
+          <input
+            type="email"
+            value={email}
             onChange={(e) => setEmail(e.target.value)}
-            required 
+            required
           />
         </div>
         <div>
           <label>Password:</label>
-          <input 
-            type="password" 
-            value={password} 
+          <input
+            type="password"
+            value={password}
             onChange={(e) => setPassword(e.target.value)}
-            required 
+            required
           />
         </div>
         <button type="submit">Register</button>
