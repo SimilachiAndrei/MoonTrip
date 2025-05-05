@@ -79,7 +79,6 @@ def get_tasks():
 
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
-    # Verifică token-ul de autentificare
     id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
     data = request.json
 
@@ -87,10 +86,16 @@ def create_task():
         decoded_token = auth.verify_id_token(id_token)
         uid = decoded_token['uid']
 
-        # Creare task nou
+        # Validate subtasks
+        subtasks = data.get('subtasks', [])
+        if not isinstance(subtasks, list):
+            return jsonify({'error': 'Subtasks must be an array'}), 400
+
         task_ref = db.collection('tasks').document()
         task_ref.set({
             'title': data.get('title'),
+            'description': data.get('description', ''),
+            'subtasks': subtasks,
             'completed': False,
             'userId': uid,
             'createdAt': firestore.SERVER_TIMESTAMP
@@ -99,6 +104,8 @@ def create_task():
         return jsonify({
             'id': task_ref.id,
             'title': data.get('title'),
+            'description': data.get('description', ''),
+            'subtasks': subtasks,
             'completed': False
         }), 201
     except Exception as e:
