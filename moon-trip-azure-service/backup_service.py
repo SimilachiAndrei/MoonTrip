@@ -15,7 +15,7 @@ AZURE_STORAGE_CONNECTION_STRING = os.getenv("AZURE_STORAGE_CONNECTION_STRING")
 CONTAINER_NAME = os.getenv("CONTAINER_NAME")
 
 # Initialize Firebase
-cred = credentials.Certificate('moon-trip-google-service\serviceAccountKey.json') 
+cred = credentials.Certificate('../moon-trip-google-service/serviceAccountKey.json')
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 

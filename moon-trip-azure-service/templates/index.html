@@ -106,7 +106,10 @@
                     <p><strong>Family Name:</strong> {{ user.family_name }}</p>
                 {% endif %}
             </div>
-            <a href="{{ url_for('logout') }}" class="button secondary">Logout</a>
+            <div style="margin-top: 20px;">
+                <a href="{{ url_for('test_email') }}" class="button">Send Test Email</a>
+                <a href="{{ url_for('logout') }}" class="button secondary">Logout</a>
+            </div>
         {% else %}
             <p>You are not logged in.</p>
             <a href="{{ url_for('login') }}" class="button">Login with Azure AD B2C</a>
