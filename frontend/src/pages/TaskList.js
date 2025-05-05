@@ -49,6 +49,27 @@ function TaskList() {
     }
   };
 
+  const deleteTask = async (taskId) => {
+    try {
+      const token = await auth.currentUser.getIdToken();
+      const response = await axios.delete(
+        `${API_URL}/api/tasks/${taskId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+      
+      // Refresh task list after deletion
+      fetchTasks();
+    } catch (error) {
+      console.error('Delete error:', error.response?.data || error.message);
+      alert(error.response?.data?.error || 'Failed to delete task');
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -88,6 +109,12 @@ function TaskList() {
               <li key={task.id}>
                 <span className={task.completed ? 'completed' : ''}>
                   {task.title}
+                  <button 
+                  onClick={() => deleteTask(task.id)} 
+                  className="delete-btn"
+                >
+                  Delete
+                </button>
                 </span>
               </li>
             ))}

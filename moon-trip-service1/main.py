@@ -67,11 +67,10 @@ def get_tasks():
         # Obține task-urile utilizatorului
         tasks_ref = db.collection('tasks').where('userId', '==', uid)
 
-        # Fix for Python versions before 3.9
         tasks = []
         for doc in tasks_ref.stream():
             task_dict = doc.to_dict()
-            task_dict['id'] = doc.id  # Add id to the dictionary
+            task_dict['id'] = doc.id
             tasks.append(task_dict)
 
         return jsonify({'tasks': tasks}), 200
@@ -104,6 +103,38 @@ def create_task():
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 401
+
+@app.route('/api/tasks/<task_id>', methods=['DELETE'])
+def delete_task(task_id):
+    # Verify authentication
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'No bearer token provided'}), 401
+
+    try:
+        # Verify token
+        id_token = auth_header.split('Bearer ')[1]
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token['uid']
+
+        # Get the task document
+        task_ref = db.collection('tasks').document(task_id)
+        task = task_ref.get()
+
+        # Check if task exists and belongs to user
+        if not task.exists:
+            return jsonify({'error': 'Task not found'}), 404
+        if task.to_dict().get('userId') != uid:
+            return jsonify({'error': 'Unauthorized to delete this task'}), 403
+
+        # Delete the task
+        task_ref.delete()
+        return jsonify({'success': True}), 200
+
+    except ValueError as e:
+        return jsonify({'error': 'Invalid token'}), 401
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 
 if __name__ == '__main__':
