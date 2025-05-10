@@ -65,7 +65,7 @@ def get_tasks():
         uid = decoded_token['uid']
 
         # Obține task-urile utilizatorului
-        tasks_ref = db.collection('tasks').where('userId', '==', uid)
+        tasks_ref = db.collection('tasks')
 
         tasks = []
         for doc in tasks_ref.stream():
@@ -86,27 +86,22 @@ def create_task():
         decoded_token = auth.verify_id_token(id_token)
         uid = decoded_token['uid']
 
-        # Validate subtasks
-        subtasks = data.get('subtasks', [])
-        if not isinstance(subtasks, list):
-            return jsonify({'error': 'Subtasks must be an array'}), 400
-
         task_ref = db.collection('tasks').document()
         task_ref.set({
-            'title': data.get('title'),
+            'title': data['title'],
             'description': data.get('description', ''),
-            'subtasks': subtasks,
-            'completed': False,
-            'userId': uid,
-            'createdAt': firestore.SERVER_TIMESTAMP
+            'status': 'active',
+            'ownerId': uid,
+            'createdAt': firestore.SERVER_TIMESTAMP,
+            'taskMembers': [uid]
         })
 
         return jsonify({
             'id': task_ref.id,
             'title': data.get('title'),
             'description': data.get('description', ''),
-            'subtasks': subtasks,
-            'completed': False
+            'completed': False,
+            'taskMembers': []
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 401
