@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { signInWithEmailAndPassword } from "firebase/auth";
 import { auth } from '../firebase';
 import axios from 'axios';
+import style from '../styles/Login.module.css';
+
 
 const API_URL = "http://localhost:8080"
 
@@ -40,8 +42,8 @@ function Login() {
   };
 
   return (
-    <div className="login-form">
-      <h2>Login</h2>
+    <div className={style.loginform}>
+      <h2 className={style.title}>Login</h2>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleLogin}>
         <div>
