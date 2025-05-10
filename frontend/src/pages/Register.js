@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { auth } from '../firebase';
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import axios from 'axios';
+import style from '../styles/Login.module.css'
+
 
 const API_URL = "http://localhost:8080";
 
@@ -48,7 +50,7 @@ function Register() {
     }
   };
   return (
-    <div className="register-form">
+    <div className={style.loginform}>
       <h2>Register</h2>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleRegister}>
@@ -72,6 +74,9 @@ function Register() {
         </div>
         <button type="submit">Register</button>
       </form>
+      <p>Already have an account?
+        <a href='/login'>Login here</a>
+      </p>
     </div>
   );
 }
