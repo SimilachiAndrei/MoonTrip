@@ -77,6 +77,31 @@ def get_tasks():
     except Exception as e:
         return jsonify({'error': str(e)}), 401
 
+@app.route('/api/member_of', methods=['GET'])
+def get_memeber_of():
+    # Verifică token-ul de autentificare
+    auth_header = request.headers.get('Authorization', '')
+    if not auth_header.startswith('Bearer '):
+        return jsonify({'error': 'No bearer token provided'}), 401
+
+    id_token = auth_header.split('Bearer ')[1]
+    try:
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token['uid']
+
+        # Obține task-urile utilizatorului
+        my_task_ref = db.collection('task_members').where('userId', '==', uid)
+
+        my_tasks = []
+        for doc in my_task_ref.stream():
+            task_dict = doc.to_dict()
+            task_dict['id'] = doc.id
+            my_tasks.append(task_dict)
+
+        return jsonify({'my_tasks': my_tasks}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 401
+
 @app.route('/api/tasks', methods=['POST'])
 def create_task():
     id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
@@ -93,51 +118,37 @@ def create_task():
             'status': 'active',
             'ownerId': uid,
             'createdAt': firestore.SERVER_TIMESTAMP,
-            'taskMembers': [uid]
         })
 
         return jsonify({
             'id': task_ref.id,
             'title': data.get('title'),
             'description': data.get('description', ''),
-            'completed': False,
-            'taskMembers': []
+            'status': 'active',
         }), 201
     except Exception as e:
         return jsonify({'error': str(e)}), 401
 
-@app.route('/api/tasks/<task_id>', methods=['DELETE'])
-def delete_task(task_id):
-    # Verify authentication
-    auth_header = request.headers.get('Authorization', '')
-    if not auth_header.startswith('Bearer '):
-        return jsonify({'error': 'No bearer token provided'}), 401
-
+@app.route('/api/join', methods=['POST'])
+def join_task():
+    id_token = request.headers.get('Authorization', '').split('Bearer ')[1]
+    data = request.json
     try:
-        # Verify token
-        id_token = auth_header.split('Bearer ')[1]
         decoded_token = auth.verify_id_token(id_token)
         uid = decoded_token['uid']
+        task_member_ref = db.collection('task_members').document()
+        task_member_ref.set({
+            'userId': uid,
+            'status': 'pending',
+            'taskId': data['taskId']
+        })
 
-        # Get the task document
-        task_ref = db.collection('tasks').document(task_id)
-        task = task_ref.get()
-
-        # Check if task exists and belongs to user
-        if not task.exists:
-            return jsonify({'error': 'Task not found'}), 404
-        if task.to_dict().get('userId') != uid:
-            return jsonify({'error': 'Unauthorized to delete this task'}), 403
-
-        # Delete the task
-        task_ref.delete()
-        return jsonify({'success': True}), 200
-
-    except ValueError as e:
-        return jsonify({'error': 'Invalid token'}), 401
+        return jsonify({
+            'status': 'pending',
+            'taskId': data['taskId']
+        }), 201
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
+        return jsonify({'error': str(e)}), 401
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
