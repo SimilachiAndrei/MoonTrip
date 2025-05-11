@@ -51,7 +51,7 @@ function Register() {
   };
   return (
     <div className={style.loginform}>
-      <h2>Register</h2>
+      <h2 className={style.title}>Register</h2>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleRegister}>
         <div>

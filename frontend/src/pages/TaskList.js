@@ -2,42 +2,81 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { signOut } from "firebase/auth";
 import { auth } from '../firebase';
+import style from '../styles/TaskList.module.css'
 
 const API_URL = "http://localhost:8080";
 
 function TaskList() {
   const [tasks, setTasks] = useState([]);
+  const [myMemberships, setMyMemberships] = useState([]);
+  const [newTask, setNewTask] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    subtasks: [{ name: '', description: '' }] // Initialize with one empty subtask
-  });
-
-  const handleSubtaskChange = (index, field, value) => {
-    const updatedSubtasks = [...newTask.subtasks];
-    updatedSubtasks[index][field] = value;
-    setNewTask({ ...newTask, subtasks: updatedSubtasks });
-  };
-
-  const addSubtaskField = () => {
-    setNewTask({
-      ...newTask,
-      subtasks: [...newTask.subtasks, { name: '', description: '' }]
+const membershipStatusMap = React.useMemo(() => {
+  const map = {};
+  // Add null check
+  if (myMemberships && myMemberships.forEach) {
+    myMemberships.forEach(membership => {
+      if (membership && membership.taskId) {
+        map[membership.taskId] = membership.status || 'none';
+      }
     });
-  };
+  }
+  return map;
+}, [myMemberships]);
 
-  const removeSubtaskField = (index) => {
-    const updatedSubtasks = [...newTask.subtasks];
-    updatedSubtasks.splice(index, 1);
-    setNewTask({ ...newTask, subtasks: updatedSubtasks });
-  };
+  const renderTaskButton = (task) => {
+    if (task.ownerId === auth.currentUser?.uid) {
+      return (
+        <button >
+          Manage Task
+        </button>
+      );
+    }
 
+    const status = membershipStatusMap[task.id];
+
+    switch (status) {
+      case 'accepted':
+        return (
+          <button>
+            Enter
+          </button>
+        );
+      case 'pending':
+        return (
+          <div>
+            Pending Approval
+          </div>
+        );
+      case 'rejected':
+        return (
+          <span >
+            Join Rejected
+          </span>
+        );
+      default:
+        return (
+          <button onClick={() => handleJoin(task.id)}>
+            Join
+          </button>
+        );
+    }
+  };
 
   useEffect(() => {
     fetchTasks();
   }, []);
+
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewTask(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
 
   const fetchTasks = async () => {
     try {
@@ -48,59 +87,18 @@ function TaskList() {
         }
       });
       setTasks(response.data.tasks);
+      const response2 = await axios.get(`${API_URL}/api/member_of`, {
+        headers: {
+          Authorization: `Bearer ${token}`
+        }
+      });
+      setMyMemberships(response2.data.task_members);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching tasks:", error);
+      console.log(tasks)
+
       setLoading(false);
-    }
-  };
-
-// In TaskList.js, modify the addTask function:
-const addTask = async (e) => {
-  e.preventDefault();
-  if (!newTask.title.trim()) return;
-
-  try {
-    const token = localStorage.getItem('authToken');
-    const response = await axios.post(
-      `${API_URL}/api/tasks`,
-      {
-        title: newTask.title,
-        description: newTask.description,
-        subtasks: newTask.subtasks 
-      },
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    setTasks([...tasks, response.data]);
-    setNewTask({
-      title: '',
-      description: '',
-      subtasks: [{ name: '', description: '' }]
-    });
-  } catch (error) {
-    console.error("Error adding task:", error);
-  }
-};
-
-  const deleteTask = async (taskId) => {
-    try {
-      const token = await auth.currentUser.getIdToken();
-      const response = await axios.delete(
-        `${API_URL}/api/tasks/${taskId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-
-      // Refresh task list after deletion
-      fetchTasks();
-    } catch (error) {
-      console.error('Delete error:', error.response?.data || error.message);
-      alert(error.response?.data?.error || 'Failed to delete task');
     }
   };
 
@@ -114,105 +112,105 @@ const addTask = async (e) => {
     }
   };
 
+  const handleCreate = async () => {
+    const token = localStorage.getItem('authToken');
+    try {
+      const response = await axios.post(`${API_URL}/api/tasks`, {
+        title: newTask.title,
+        description: newTask.description
+      },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setIsModalOpen(false);
+      setNewTask({ title: '', description: '' });
+
+    }
+    catch (err) {
+      console.error("Failed to create task:", err);
+    }
+  }
+
+  const handleJoin = async (id) => {
+    const token = localStorage.getItem('authToken');
+    try {
+      const response = await axios.post(`${API_URL}/api/join`, {
+        taskId: id,
+      },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    }
+    catch (err) {
+      console.error("Failed to create task:", err);
+    }
+  };
+
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div className="task-manager">
-      <header>
-        <h1>Task Manager</h1>
-        <button onClick={handleLogout} className="logout-btn">Logout</button>
-      </header>
+    <div className={style.container}>
+      <div className={style.header}>
+        <button onClick={handleLogout}>Logout</button>{/*if in mytasks then enter instead of join and be redirected and if joined then cannot give another join whatever*/}
+        <h2 className='title'>Organize your tasks to reach the Moon</h2>
+        <button onClick={() => { setIsModalOpen(true) }}>Create Task</button>
+      </div>
 
-      <form onSubmit={addTask} className="task-form">
-        <div className="form-group">
-          <input
-            type="text"
-            name="title"
-            value={newTask.title}
-            onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-            placeholder="Main task title"
-            required
-          />
-        </div>
-
-        <div className="form-group">
-          <textarea
-            name="description"
-            value={newTask.description}
-            onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-            placeholder="Main task description"
-            rows="3"
-          />
-        </div>
-
-        <div className="subtasks-section">
-          <h4>Subtasks</h4>
-          {newTask.subtasks.map((subtask, index) => (
-            <div key={index} className="subtask-group">
-              <input
-                type="text"
-                value={subtask.name}
-                onChange={(e) => handleSubtaskChange(index, 'name', e.target.value)}
-                placeholder="Subtask name"
-              />
-              <textarea
-                value={subtask.description}
-                onChange={(e) => handleSubtaskChange(index, 'description', e.target.value)}
-                placeholder="Subtask description"
-                rows="2"
-              />
-              {newTask.subtasks.length > 1 && (
+      {isModalOpen && (
+        <div className={style.modalOverlay}>
+          <div className={style.modalContent}>
+            <h3>Create a New Task</h3>
+            <form onSubmit={handleCreate}>
+              <label>
+                Title
+                <input
+                  type="text"
+                  name="title"
+                  value={newTask.title}
+                  onChange={handleInputChange}
+                  required
+                />
+              </label>
+              <label>
+                Description
+                <textarea
+                  name="description"
+                  value={newTask.description}
+                  onChange={handleInputChange}
+                />
+              </label>
+              <div className={style.modalButtons}>
+                <button type="submit">Save</button>
                 <button
                   type="button"
-                  onClick={() => removeSubtaskField(index)}
-                  className="remove-subtask"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setNewTask({ title: '', description: '' });
+                  }}
                 >
-                  Remove
+                  Cancel
                 </button>
-              )}
-            </div>
-          ))}
-          <button
-            type="button"
-            onClick={addSubtaskField}
-            className="add-subtask"
-          >
-            + Add Subtask
-          </button>
+              </div>
+            </form>
+          </div>
         </div>
+      )}
 
-        <button type="submit">Create Task</button>
-      </form>
 
-      <div className="task-list">
-        <h2>Your Tasks</h2>
-        {tasks.length === 0 ? (
-          <p>No tasks yet. Add some tasks to get started!</p>
-        ) : (
-          <ul className="task-list">
-            {tasks.map((task) => (
-              <li key={task.id} className="task-item">
-                <div className="task-main">
-                  <h3>{task.title}</h3>
-                  {task.description && <p className="task-description">{task.description}</p>}
-                  <button onClick={() => deleteTask(task.id)}>Delete Task</button>
-                </div>
+      <div className={style.content}>
+        {tasks.map(task => (
+          <div key={task.id} className={style.task}>
+            <div>
+              <h3>{task.title}</h3>
+              <p>{task.description}</p>
+            </div>
+            {
+              // <button onClick={() => handleJoin(task.id)}>Join</button>
+              renderTaskButton(task)
+            }
+          </div>
+        ))}
 
-                {task.subtasks && task.subtasks.length > 0 && (
-                  <ul className="subtask-list">
-                    {task.subtasks.map((subtask, index) => (
-                      <li key={index} className="subtask-item">
-                        <strong>{subtask.name}</strong>
-                        {subtask.description && <p>{subtask.description}</p>}
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
+
     </div>
   );
 }
