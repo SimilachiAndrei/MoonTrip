@@ -12,63 +12,68 @@ function TaskList() {
   const [newTask, setNewTask] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState(null);
 
-const membershipStatusMap = React.useMemo(() => {
-  const map = {};
-  // Add null check
-  if (myMemberships && myMemberships.forEach) {
-    myMemberships.forEach(membership => {
-      if (membership && membership.taskId) {
-        map[membership.taskId] = membership.status || 'none';
-      }
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      setCurrentUser(user);
     });
-  }
-  return map;
-}, [myMemberships]);
 
-  const renderTaskButton = (task) => {
-    if (task.ownerId === auth.currentUser?.uid) {
+    fetchTasks();
+
+    return () => unsubscribe();
+  }, []);
+
+  const renderButton = (task) => {
+    if (!currentUser) return null;
+
+    if (task.status === 'completed') {
       return (
-        <button >
+        <div className={style.completeButton} disabled>
+          <span className={style.completedText}>Completed</span>
+          <span className={style.percentageText}>100%</span>
+        </div>
+      );
+    }
+
+    if (task.ownerId === currentUser.uid) {
+      return (
+        <button onClick={() => { window.location.href = `task/${task.id}`; }}>
           Manage Task
         </button>
       );
     }
 
-    const status = membershipStatusMap[task.id];
+    const membership = myMemberships.find(m => m.taskId === task.id);
 
-    switch (status) {
-      case 'accepted':
-        return (
-          <button>
-            Enter
-          </button>
-        );
-      case 'pending':
-        return (
-          <div>
-            Pending Approval
-          </div>
-        );
-      case 'rejected':
-        return (
-          <span >
-            Join Rejected
-          </span>
-        );
-      default:
-        return (
-          <button onClick={() => handleJoin(task.id)}>
-            Join
-          </button>
-        );
+    if (membership) {
+      switch (membership.status) {
+        case 'pending':
+          return (
+            <button disabled>
+              Pending Approval
+            </button>
+          );
+        case 'accepted':
+          return (
+            <button onClick={() => { window.location.href = `task/${task.id}`; }}>
+              Enter Task
+            </button>
+          );
+        default:
+          return null;
+      }
     }
+
+    return (
+      <button
+        className={style.joinButton}
+        onClick={() => handleJoin(task.id)}
+      >
+        Join Task
+      </button>
+    );
   };
-
-  useEffect(() => {
-    fetchTasks();
-  }, []);
-
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -87,17 +92,16 @@ const membershipStatusMap = React.useMemo(() => {
         }
       });
       setTasks(response.data.tasks);
+
       const response2 = await axios.get(`${API_URL}/api/member_of`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      setMyMemberships(response2.data.task_members);
+      setMyMemberships(response2.data.my_tasks);
       setLoading(false);
     } catch (error) {
       console.error("Error fetching tasks:", error);
-      console.log(tasks)
-
       setLoading(false);
     }
   };
@@ -112,7 +116,8 @@ const membershipStatusMap = React.useMemo(() => {
     }
   };
 
-  const handleCreate = async () => {
+  const handleCreate = async (e) => {
+    e.preventDefault();
     const token = localStorage.getItem('authToken');
     try {
       const response = await axios.post(`${API_URL}/api/tasks`, {
@@ -123,6 +128,7 @@ const membershipStatusMap = React.useMemo(() => {
       );
       setIsModalOpen(false);
       setNewTask({ title: '', description: '' });
+      fetchTasks();
 
     }
     catch (err) {
@@ -138,9 +144,10 @@ const membershipStatusMap = React.useMemo(() => {
       },
         { headers: { Authorization: `Bearer ${token}` } }
       );
+      fetchTasks();
     }
     catch (err) {
-      console.error("Failed to create task:", err);
+      console.error("Failed to join task:", err);
     }
   };
 
@@ -149,7 +156,7 @@ const membershipStatusMap = React.useMemo(() => {
   return (
     <div className={style.container}>
       <div className={style.header}>
-        <button onClick={handleLogout}>Logout</button>{/*if in mytasks then enter instead of join and be redirected and if joined then cannot give another join whatever*/}
+        <button onClick={handleLogout}>Logout</button>
         <h2 className='title'>Organize your tasks to reach the Moon</h2>
         <button onClick={() => { setIsModalOpen(true) }}>Create Task</button>
       </div>
@@ -194,23 +201,20 @@ const membershipStatusMap = React.useMemo(() => {
         </div>
       )}
 
-
       <div className={style.content}>
+
         {tasks.map(task => (
           <div key={task.id} className={style.task}>
             <div>
               <h3>{task.title}</h3>
               <p>{task.description}</p>
             </div>
-            {
-              // <button onClick={() => handleJoin(task.id)}>Join</button>
-              renderTaskButton(task)
-            }
+            {renderButton(task)}
           </div>
+
         ))}
 
       </div>
-
     </div>
   );
 }
