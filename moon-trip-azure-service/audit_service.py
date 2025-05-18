@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO)
 # --- Firebase Setup ---
 def init_firebase():
     if not firebase_admin._apps:
-        cred = credentials.Certificate('moon-trip-google-service\serviceAccountKey.json')  # Replace with your path
+        cred = credentials.Certificate('../moon-trip-google-service/serviceAccountKey.json')
         firebase_admin.initialize_app(cred)
 
 def fetch_data_from_firebase():
@@ -42,9 +42,9 @@ def summarize_data(data):
     }
 
 # --- Cosmos DB Setup ---
-COSMOS_ENDPOINT = os.environ["COSMOS_ENDPOINT"]
-COSMOS_KEY = os.environ["COSMOS_KEY"]
-COSMOS_DB = "AuditDB"
+COSMOS_ENDPOINT = os.getenv("COSMOS_ENDPOINT")
+COSMOS_KEY = os.getenv("COSMOS_KEY")
+COSMOS_DB = "cosmo-db134"
 COSMOS_CONTAINER = "WeeklySummary"
 
 def write_to_cosmos(summary_data):

@@ -1,0 +1,3 @@
+"""
+MoonTrip Backend Application
+""" 

@@ -78,8 +78,7 @@ def create_backup():
     try:
         # Initialize Azure Storage
         container_client = initialize_azure_storage()
-        
-        # Collections to backup
+
         collections = ['users', 'tasks']
         
         backup_results = {}
