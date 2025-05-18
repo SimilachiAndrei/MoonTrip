@@ -3,10 +3,9 @@ from flask_cors import CORS
 import os
 import firebase_admin
 from firebase_admin import credentials, auth, firestore
-import json
 
 # Inițializare Firebase
-cred = credentials.Certificate('../moon-trip-google-service/serviceAccountKey.json') # Descarcă din Firebase Console
+cred = credentials.Certificate('./serviceAccountKey.json')  # Descarcă din Firebase Console
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
@@ -152,5 +151,5 @@ def join_task():
         return jsonify({'error': str(e)}), 401
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 8082))
+    port = int(os.environ.get('PORT', 8080))
     app.run(host='0.0.0.0', port=port)
