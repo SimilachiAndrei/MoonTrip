@@ -2,14 +2,16 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { signOut } from "firebase/auth";
 import { auth } from '../firebase';
-import style from '../styles/TaskList.module.css'
+import style from '../styles/TaskList.module.css';
+import { useNavigate } from 'react-router-dom';
 
 const API_URL = "http://localhost:8080";
 
 function TaskList() {
+  const navigate = useNavigate();
   const [tasks, setTasks] = useState([]);
   const [myMemberships, setMyMemberships] = useState([]);
-  const [newTask, setNewTask] = useState([]);
+  const [newTask, setNewTask] = useState({ title: '', description: '' });
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentUser, setCurrentUser] = useState(null);
@@ -17,63 +19,15 @@ function TaskList() {
   useEffect(() => {
     const unsubscribe = auth.onAuthStateChanged((user) => {
       setCurrentUser(user);
+      if (user) {
+        fetchTasks();
+      } else {
+        navigate('/login');
+      }
     });
 
-    fetchTasks();
-
     return () => unsubscribe();
-  }, []);
-
-  const renderButton = (task) => {
-    if (!currentUser) return null;
-
-    if (task.status === 'completed') {
-      return (
-        <div className={style.completeButton} disabled>
-          <span className={style.completedText}>Completed</span>
-          <span className={style.percentageText}>100%</span>
-        </div>
-      );
-    }
-
-    if (task.ownerId === currentUser.uid) {
-      return (
-        <button onClick={() => { window.location.href = `task/${task.id}`; }}>
-          Manage Task
-        </button>
-      );
-    }
-
-    const membership = myMemberships.find(m => m.taskId === task.id);
-
-    if (membership) {
-      switch (membership.status) {
-        case 'pending':
-          return (
-            <button disabled>
-              Pending Approval
-            </button>
-          );
-        case 'accepted':
-          return (
-            <button onClick={() => { window.location.href = `task/${task.id}`; }}>
-              Enter Task
-            </button>
-          );
-        default:
-          return null;
-      }
-    }
-
-    return (
-      <button
-        className={style.joinButton}
-        onClick={() => handleJoin(task.id)}
-      >
-        Join Task
-      </button>
-    );
-  };
+  }, [navigate]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -86,22 +40,20 @@ function TaskList() {
   const fetchTasks = async () => {
     try {
       const token = localStorage.getItem('authToken');
-      const response = await axios.get(`${API_URL}/api/tasks`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      setTasks(response.data.tasks);
+      const [tasksResponse, membershipsResponse] = await Promise.all([
+        axios.get(`${API_URL}/api/tasks`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }),
+        axios.get(`${API_URL}/api/member_of`, {
+          headers: { Authorization: `Bearer ${token}` }
+        })
+      ]);
 
-      const response2 = await axios.get(`${API_URL}/api/member_of`, {
-        headers: {
-          Authorization: `Bearer ${token}`
-        }
-      });
-      setMyMemberships(response2.data.my_tasks);
+      setTasks(tasksResponse.data.tasks);
+      setMyMemberships(membershipsResponse.data.my_tasks);
       setLoading(false);
     } catch (error) {
-      console.error("Error fetching tasks:", error);
+      console.error("Error fetching data:", error);
       setLoading(false);
     }
   };
@@ -110,7 +62,7 @@ function TaskList() {
     try {
       await signOut(auth);
       localStorage.removeItem('authToken');
-      window.location.href = '/login';
+      navigate('/login');
     } catch (error) {
       console.error("Error signing out:", error);
     }
@@ -120,45 +72,168 @@ function TaskList() {
     e.preventDefault();
     const token = localStorage.getItem('authToken');
     try {
-      const response = await axios.post(`${API_URL}/api/tasks`, {
-        title: newTask.title,
-        description: newTask.description
-      },
+      await axios.post(
+        `${API_URL}/api/tasks`,
+        {
+          title: newTask.title,
+          description: newTask.description
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setIsModalOpen(false);
       setNewTask({ title: '', description: '' });
       fetchTasks();
-
-    }
-    catch (err) {
+    } catch (err) {
       console.error("Failed to create task:", err);
     }
-  }
+  };
 
   const handleJoin = async (id) => {
     const token = localStorage.getItem('authToken');
     try {
-      const response = await axios.post(`${API_URL}/api/join`, {
-        taskId: id,
-      },
+      await axios.post(
+        `${API_URL}/api/join`,
+        { taskId: id },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchTasks();
-    }
-    catch (err) {
+    } catch (err) {
       console.error("Failed to join task:", err);
     }
   };
 
-  if (loading) return <div>Loading...</div>;
+  const handleDeleteTask = async (taskId) => {
+    const token = localStorage.getItem('authToken');
+
+    // Optimistic UI update
+    setTasks(prev => prev.filter(task => task.id !== taskId));
+
+    try {
+      const response = await axios.delete(
+        `${API_URL}/api/tasks/${taskId}`,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          } 
+        }
+      );
+
+      if (!response.data.success) {
+        throw new Error('Failed to delete task');
+      }
+    } catch (err) {
+      console.error("Failed to delete task:", err);
+      // Revert on error by refetching
+      fetchTasks();
+    }
+  };
+
+  const renderButtons = (task) => {
+    if (!currentUser) return null;
+
+    const buttons = [];
+
+    if (task.status === 'completed') {
+      buttons.push(
+        <button key="completed" className={style.completeButton} disabled>
+          Completed
+        </button>
+      );
+    } else if (task.ownerId === currentUser.uid) {
+      buttons.push(
+        <button key="manage" onClick={() => navigate(`/task/${task.id}`)}>
+          Manage Task
+        </button>
+      );
+      buttons.push(
+        <button 
+          key="delete" 
+          className={style.delete}
+          onClick={() => handleDeleteTask(task.id)}
+        >
+          Delete Task
+        </button>
+      );
+    } else {
+      const membership = myMemberships.find(m => m.taskId === task.id);
+
+      if (membership) {
+        switch (membership.status) {
+          case 'pending':
+            buttons.push(
+              <button key="pending" disabled>
+                Pending Approval
+              </button>
+            );
+            break;
+          case 'accepted':
+            buttons.push(
+              <button key="enter" onClick={() => navigate(`/task/${task.id}`)}>
+                Enter Task
+              </button>
+            );
+            break;
+          default:
+            break;
+        }
+      } else {
+        buttons.push(
+          <button
+            key="join"
+            className={style.joinButton}
+            onClick={() => handleJoin(task.id)}
+          >
+            Join Task
+          </button>
+        );
+      }
+    }
+
+    return (
+      <div className={style.taskButtons}>
+        {buttons}
+      </div>
+    );
+  };
+
+  if (loading) {
+    return (
+      <div className={style.container}>
+        <div className={style.header}>
+          <button onClick={handleLogout}>Logout</button>
+          <h2>Loading...</h2>
+          <button disabled>Create Task</button>
+        </div>
+        <div className={style.content}>
+          <div className={style.loading}>Loading tasks...</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={style.container}>
       <div className={style.header}>
         <button onClick={handleLogout}>Logout</button>
-        <h2 className='title'>Organize your tasks to reach the Moon</h2>
-        <button onClick={() => { setIsModalOpen(true) }}>Create Task</button>
+        <h2>Organize your tasks to reach the Moon</h2>
+        <button onClick={() => setIsModalOpen(true)}>Create Task</button>
+      </div>
+
+      <div className={style.content}>
+        {tasks.length === 0 ? (
+          <div className={style.emptyState}>No tasks available. Create one to get started!</div>
+        ) : (
+          tasks.map(task => (
+            <div key={task.id} className={style.task}>
+              <div className={style.taskInfo}>
+                <h3>{task.title}</h3>
+                <p>{task.description}</p>
+              </div>
+              {renderButtons(task)}
+            </div>
+          ))
+        )}
       </div>
 
       {isModalOpen && (
@@ -200,21 +275,6 @@ function TaskList() {
           </div>
         </div>
       )}
-
-      <div className={style.content}>
-
-        {tasks.map(task => (
-          <div key={task.id} className={style.task}>
-            <div>
-              <h3>{task.title}</h3>
-              <p>{task.description}</p>
-            </div>
-            {renderButton(task)}
-          </div>
-
-        ))}
-
-      </div>
     </div>
   );
 }
